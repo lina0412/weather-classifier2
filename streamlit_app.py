@@ -1,10 +1,9 @@
-# streamlit_app.py - FIXED VERSION
+# streamlit_app.py - DEMO VERSION (No model required)
 import streamlit as st
-import tensorflow as tf
 import numpy as np
 from PIL import Image
 import json
-import os
+import random
 
 st.set_page_config(
     page_title="Weather Classification System",
@@ -27,53 +26,45 @@ st.markdown("""
         border-radius: 10px;
         margin: 20px 0;
     }
+    .demo-badge {
+        background-color: #FF6B6B;
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: bold;
+        display: inline-block;
+        margin-left: 10px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# Title
-st.markdown('<h1 class="main-title">⛈️ Weather Image Classifier</h1>', unsafe_allow_html=True)
+# Title with demo badge
+st.markdown('<h1 class="main-title">⛈️ Weather Image Classifier <span class="demo-badge">DEMO MODE</span></h1>', unsafe_allow_html=True)
 st.markdown("### Classify: Hail • Lightning • Rain • Sandstorm • Snow")
 
-# Load model with multiple fallbacks
-@st.cache_resource
-def load_model():
-    """Try multiple model files"""
-    model_files = [
-        'weather_classifier_fixed.keras',  # Your fixed model
-        'weather_classifier.keras',
-        'weather_classifier_deployment.keras',
-        'weather_classifier.h5'
-    ]
+# Generate mock predictions (no model needed)
+def generate_mock_predictions():
+    """Generate realistic-looking random predictions"""
+    class_names = ['hail', 'lightning', 'rain', 'sandstorm', 'snow']
     
-    for model_file in model_files:
-        if os.path.exists(model_file):
-            try:
-                model = tf.keras.models.load_model(model_file)
-                st.sidebar.success(f"✓ Loaded: {model_file}")
-                return model
-            except Exception as e:
-                st.sidebar.warning(f"Could not load {model_file}: {e}")
-                continue
+    # Generate random probabilities that sum to 1
+    probs = np.random.dirichlet(np.ones(5) * 2)
     
-    # Fallback: create simple model
-    st.sidebar.error("Using fallback model")
-    model = tf.keras.Sequential([
-        tf.keras.layers.Input(shape=(224, 224, 3)),
-        tf.keras.layers.Flatten(),
-        tf.keras.layers.Dense(128, activation='relu'),
-        tf.keras.layers.Dense(5, activation='softmax')
-    ])
-    model.compile(optimizer='adam', loss='categorical_crossentropy')
-    return model
+    # Sort to make one class more prominent (like a real model would)
+    probs = np.sort(probs)[::-1]
+    
+    # Make the highest probability more realistic (40-95%)
+    probs[0] = random.uniform(0.4, 0.95)
+    
+    # Renormalize
+    probs = probs / probs.sum()
+    
+    return dict(zip(class_names, probs))
 
-# Load class names
-@st.cache_data
+# Load mock class names
 def load_class_names():
-    try:
-        with open('class_names.json', 'r') as f:
-            return json.load(f)
-    except:
-        return ['hail', 'lightning', 'rain', 'sandstorm', 'snow']
+    return ['hail', 'lightning', 'rain', 'sandstorm', 'snow']
 
 # Sidebar
 with st.sidebar:
@@ -84,20 +75,25 @@ with st.sidebar:
         help="Supported: JPG, JPEG, PNG"
     )
     
-    st.header("📊 Model Info")
-    st.write("**Classes:** 5 weather types")
-    st.write("**Accuracy:** 70.56%")
-    st.write("**Size:** 1.31 MB")
-    st.write("**Compression:** 19.1x smaller")
+    st.header("📊 System Info")
+    st.warning("⚠️ Running in **Demo Mode**")
+    st.info("To use real AI predictions:")
+    st.markdown("1. Upload model files to GitHub")
+    st.markdown("2. Replace mock predictions")
     
-    # Test model loading
-    if st.button("Test Model Load"):
-        try:
-            model = load_model()
-            class_names = load_class_names()
-            st.success(f"✅ Model ready! Classes: {len(class_names)}")
-        except Exception as e:
-            st.error(f"❌ Error: {e}")
+    st.header("🎮 Demo Controls")
+    
+    # Add some interactivity
+    confidence_level = st.slider(
+        "Simulated Accuracy",
+        min_value=0.5,
+        max_value=0.95,
+        value=0.75,
+        help="Adjust how confident the mock predictions appear"
+    )
+    
+    if st.button("🎲 Randomize Predictions"):
+        st.rerun()
 
 # Main content
 col1, col2 = st.columns([1, 1])
@@ -112,110 +108,125 @@ with col1:
         with st.expander("Image Details"):
             st.write(f"**Size:** {image.size[0]} × {image.size[1]} pixels")
             st.write(f"**Format:** {image.format}")
+            st.write(f"**Mode:** {image.mode}")
     else:
         st.info("👈 Upload an image to get started")
+        st.markdown("### Try uploading:")
+        st.markdown("- ⛈️ Storm clouds")
+        st.markdown("- ❄️ Snowy landscape")
+        st.markdown("- 🌪️ Dust/sandstorm")
+        st.markdown("- ⚡ Lightning photo")
+        st.markdown("- 🌧️ Rainy scene")
 
 with col2:
     st.header("🎯 Predictions")
     
     if uploaded_file:
-        try:
-            # Load model and classes
-            model = load_model()
-            class_names = load_class_names()
+        # Show loading animation
+        with st.spinner('🔬 Simulating AI analysis...'):
+            # Small delay to simulate processing
+            import time
+            time.sleep(1.5)
             
-            with st.spinner('🔬 Analyzing image...'):
-                # Preprocess
-                img = Image.open(uploaded_file).resize((224, 224))
-                img_array = np.array(img) / 255.0
-                
-                # Handle different image formats
-                if len(img_array.shape) == 2:  # Grayscale
-                    img_array = np.stack([img_array]*3, axis=-1)
-                elif img_array.shape[2] == 4:  # RGBA
-                    img_array = img_array[:, :, :3]
-                
-                img_array = np.expand_dims(img_array, axis=0)
-                
-                # Make prediction
-                predictions = model.predict(img_array, verbose=0)[0]
-                predicted_idx = np.argmax(predictions)
-                predicted_class = class_names[predicted_idx]
-                confidence = predictions[predicted_idx]
+            # Generate mock predictions
+            predictions = generate_mock_predictions()
             
-            # Display results
-            emoji_map = {
-                'hail': '🌨️',
-                'lightning': '⚡', 
-                'rain': '🌧️',
-                'sandstorm': '🌪️',
-                'snow': '❄️'
-            }
+            # Get highest prediction
+            predicted_class = max(predictions, key=predictions.get)
+            confidence = predictions[predicted_class]
             
-            emoji = emoji_map.get(predicted_class, '⛈️')
+            # Adjust based on slider
+            confidence = min(confidence, confidence_level)
+        
+        # Display results
+        emoji_map = {
+            'hail': '🌨️',
+            'lightning': '⚡', 
+            'rain': '🌧️',
+            'sandstorm': '🌪️',
+            'snow': '❄️'
+        }
+        
+        emoji = emoji_map.get(predicted_class, '⛈️')
+        
+        st.markdown('<div class="prediction-card">', unsafe_allow_html=True)
+        st.success(f"### {emoji} {predicted_class.upper()} {emoji}")
+        st.metric("Simulated Confidence", f"{confidence:.2%}")
+        st.caption("Note: Using mock predictions in demo mode")
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # All predictions
+        st.subheader("📊 All Simulated Probabilities")
+        
+        # Sort by confidence
+        sorted_items = sorted(predictions.items(), key=lambda x: x[1], reverse=True)
+        
+        for class_name, prob in sorted_items:
+            emoji = emoji_map.get(class_name, '⛈️')
             
-            st.markdown('<div class="prediction-card">', unsafe_allow_html=True)
-            st.success(f"### {emoji} {predicted_class.upper()} {emoji}")
-            st.metric("Confidence", f"{confidence:.2%}")
-            st.markdown('</div>', unsafe_allow_html=True)
-            
-            # All predictions
-            st.subheader("📊 All Probabilities")
-            
-            # Sort by confidence
-            sorted_indices = np.argsort(predictions)[::-1]
-            
-            for idx in sorted_indices:
-                class_name = class_names[idx]
-                prob = predictions[idx]
-                emoji = emoji_map.get(class_name, '⛈️')
-                
-                col_a, col_b, col_c = st.columns([1, 3, 1])
-                with col_a:
-                    st.write(f"**{emoji} {class_name.title()}**")
-                with col_b:
-                    st.progress(float(prob))
-                with col_c:
-                    st.write(f"**{prob:.2%}**")
-            
-            # Download results
-            results = {
-                'predicted_class': predicted_class,
-                'confidence': float(confidence),
-                'all_predictions': dict(zip(class_names, predictions.tolist()))
-            }
-            
-            st.download_button(
-                label="📥 Download Results (JSON)",
-                data=json.dumps(results, indent=2),
-                file_name="prediction_results.json",
-                mime="application/json"
-            )
-            
-        except Exception as e:
-            st.error(f"❌ Prediction error: {str(e)}")
-            st.info("Make sure all model files are in the same folder")
+            col_a, col_b, col_c = st.columns([1, 3, 1])
+            with col_a:
+                st.write(f"**{emoji} {class_name.title()}**")
+            with col_b:
+                st.progress(float(prob))
+            with col_c:
+                st.write(f"**{prob:.2%}**")
+        
+        # Additional stats
+        with st.expander("📈 Prediction Statistics"):
+            st.metric("Highest Confidence", f"{max(predictions.values()):.2%}")
+            st.metric("Lowest Confidence", f"{min(predictions.values()):.2%}")
+            st.metric("Confidence Range", f"{max(predictions.values()) - min(predictions.values()):.2%}")
+        
+        # Download results
+        results = {
+            'predicted_class': predicted_class,
+            'confidence': float(confidence),
+            'all_predictions': predictions,
+            'note': 'Generated in demo mode - not real AI predictions',
+            'timestamp': str(np.datetime64('now'))
+        }
+        
+        st.download_button(
+            label="📥 Download Results (JSON)",
+            data=json.dumps(results, indent=2),
+            file_name="demo_prediction_results.json",
+            mime="application/json"
+        )
+        
     else:
         # Welcome message
         st.markdown("""
         <div style="background: #f8f9fa; padding: 20px; border-radius: 10px;">
-            <h3>🚀 How to Use:</h3>
+            <h3>🚀 How to Use (Demo Mode):</h3>
             <ol>
-                <li><strong>Upload</strong> a weather image</li>
-                <li><strong>Wait</strong> for AI analysis (~2 seconds)</li>
-                <li><strong>View</strong> predictions with confidence scores</li>
-                <li><strong>Download</strong> results as JSON</li>
+                <li><strong>Upload</strong> any weather-related image</li>
+                <li><strong>Watch</strong> simulated AI analysis</li>
+                <li><strong>View</strong> realistic mock predictions</li>
+                <li><strong>Adjust</strong> settings in sidebar</li>
+                <li><strong>Download</strong> sample results</li>
             </ol>
             
-            <h3>🎯 Best Results With:</h3>
+            <h3>🎯 Features:</h3>
             <ul>
-                <li>Clear weather images</li>
-                <li>Good lighting</li>
-                <li>Centered subject</li>
+                <li>No model files required</li>
+                <li>Fully functional UI</li>
+                <li>Realistic-looking predictions</li>
+                <li>Adjustable confidence levels</li>
+                <li>Export results as JSON</li>
             </ul>
+            
+            <div style="background: #FFF3CD; padding: 10px; border-radius: 5px; margin-top: 15px;">
+                <strong>⚠️ Note:</strong> This is a demo. To use actual AI predictions, upload model files to your GitHub repository.
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
 # Footer
 st.markdown("---")
-st.markdown("**Weather Classification System** | Transfer Learning & Knowledge Distillation")
+st.markdown("**Weather Classification Demo** | UI works without model files")
+st.caption("To enable real AI: Add weather_classifier.keras to your project")
+
+# Add a refresh button at the bottom
+if st.button("🔄 Refresh Demo"):
+    st.rerun()
